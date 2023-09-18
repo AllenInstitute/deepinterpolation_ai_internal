@@ -1291,17 +1291,32 @@ class MovieJSONGenerator(DeepGenerator):
         else:
             indexes = np.arange(index * self.batch_size, (index + 1) * self.batch_size)
 
-        actual_batch_size = len(indexes)
-        input_full = np.zeros(
-            [actual_batch_size, 512, 512, self.pre_frame + self.post_frame]
-        )
-        output_full = np.zeros([actual_batch_size, 512, 512, 1])
+        if len(self.lims_id) == 1 and self._movs:
+            # 2D slicing of cached movie if only one movie exists
+            output_indices = [self.shuffled_data_list[index][1] for index in indexes]
+            input_indices = np.vstack(
+                [
+                    self.__get_sample_input_indices(frame_index)
+                    for frame_index in output_indices
+                ]
+            )
+            input_full = self._movs[self.lims_id[0]][input_indices]
+            output_full = self._movs[self.lims_id[0]][output_indices]
+            input_full = np.moveaxis(input_full, 1, -1)
+            output_full = np.expand_dims(output_full, -1)
 
-        for batch_index, frame_index in enumerate(indexes):
-            X, Y = self.__data_generation__(frame_index)
+        else:
+            actual_batch_size = len(indexes)
+            input_full = np.zeros(
+                [actual_batch_size, 512, 512, self.pre_frame + self.post_frame]
+            )
+            output_full = np.zeros([actual_batch_size, 512, 512, 1])
 
-            input_full[batch_index, :, :, :] = X
-            output_full[batch_index, :, :, :] = Y
+            for batch_index, frame_index in enumerate(indexes):
+                X, Y = self.__data_generation__(frame_index)
+
+                input_full[batch_index, :, :, :] = X
+                output_full[batch_index, :, :, :] = Y
 
         return input_full, output_full
 
@@ -1311,6 +1326,18 @@ class MovieJSONGenerator(DeepGenerator):
         local_std = self.frame_data_location[local_lims]["std"]
 
         return local_mean, local_std
+
+    def __get_sample_input_indices(self, index_frame: int):
+        input_index_left = np.arange(
+            index_frame - self.pre_frame - self.pre_post_omission,
+            index_frame - self.pre_post_omission,
+        )
+        input_index_right = np.arange(
+            index_frame + self.pre_post_omission + 1,
+            index_frame + self.post_frame + self.pre_post_omission + 1,
+        )
+        input_index = np.concatenate([input_index_left, input_index_right])
+        return input_index
 
     def _make_index_to_frames(self):
         """
