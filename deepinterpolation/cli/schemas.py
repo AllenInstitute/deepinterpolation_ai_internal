@@ -295,7 +295,7 @@ class ModelSourceSchema(argschema.schemas.DefaultSchema):
     )
 
     @mm.validates_schema
-    def validate(self, data):
+    def validate(self, data, **kwargs):
         path_given = "local_path" in data
         mlflow_params_given = "mlflow_registry" in data
         if path_given and mlflow_params_given:
